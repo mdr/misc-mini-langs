@@ -18,7 +18,7 @@ sealed abstract class Expression {
         Function(arg, body alphaConversion conflicting)
     case Application(a, b) =>
       Application(a alphaConversion conflicting,
-                  b alphaConversion conflicting)
+        b alphaConversion conflicting)
   }
 
   def betaReduction: Expression = this match {
@@ -52,6 +52,8 @@ sealed abstract class Expression {
     }
   }
   def evaluate: Expression = evaluate { e => () }
+
+  def apply(other: Expression) = Application(this, other)
 }
 
 case class Var(name: String) extends Expression {
@@ -90,7 +92,7 @@ case class Function(argument: Var, body: Expression) extends Expression {
   def freeVars: Set[Var] = body.freeVars - argument
   def boundVars: Set[Var] = body.boundVars + argument
 
-  override def toString: String = String.format("λ%s.%s", argument, body)
+  override def toString: String = String.format("λ%s·%s", argument, body)
 
   /**
    * `equals` is overriden here to capture alpha-equivalence.
@@ -111,47 +113,45 @@ case class Application(function: Expression, argument: Expression) extends Expre
 
   override def toString: String = {
     val left = function match {
-      case Function(_, _) => "("+ function +")"
+      case Function(_, _) => "(" + function + ")"
       case _ => function
     }
     val right = argument match {
       case Var(_) => argument
-      case _ => "("+ argument +")"
+      case _ => "(" + argument + ")"
     }
-    left +" "+ right
+    left + " " + right
   }
 }
 
 class LambdaParsers extends RegexParsers {
-  def expression: Parser[Expression] = (
-      application
-    | simpleExpression
-  )
+  def expression: Parser[Expression] = (application
+    | simpleExpression)
 
-  def simpleExpression: Parser[Expression] = (
-      function
+  def simpleExpression: Parser[Expression] = (function
     | variable
     | constant
-    | "("~>expression<~")"
-  )
+    | "(" ~> expression <~ ")")
 
   def function: Parser[Expression] =
-    lambda~>arguments~"."~expression ^^ { 
-      case args~"."~exp => (args :\ exp) { Function(_, _) }
+    (lambda ~> arguments <~ dot) ~ expression ^^ {
+      case args ~ exp => (args :\ exp) { Function(_, _) }
     }
 
   def application: Parser[Expression] =
-    simpleExpression~rep1(simpleExpression) ^^ {
-      case exp~exps => (exp /: exps) { (app, e) => Application(app, e) }
+    simpleExpression ~ rep1(simpleExpression) ^^ {
+      case exp ~ exps => (exp /: exps) { (app, e) => Application(app, e) }
     }
 
   def arguments: Parser[List[Var]] = rep1(variable)
 
   def lambda: Parser[String] = """\\|λ""".r
 
+  def dot: Parser[String] = ".|·".r
+
   def variable: Parser[Var] = """[a-z]'*""".r ^^ { Var(_) }
 
-  def constant: Parser[Expression] = """[^a-z\\λ\(\)\s\.']+""".r ^^ {
+  def constant: Parser[Expression] = """[^a-z\\λ\(\)\s\.·']+""".r ^^ {
     case name => Expression(Expression.sources(name))
   }
 }
@@ -172,21 +172,31 @@ object Expression extends LambdaParsers {
 
   lazy val constants = sources transform { (name, src) => Expression(src) }
 
+  implicit def string2Expression(s: String): Expression = Expression(s)
+
   private[lambdacalculus] val sources = Map(
-    "0"     -> "λfx.x",
-    "1"     -> "λfx.f x",
-    "2"     -> "λfx.f (f x)",
-    "3"     -> "λfx.f (f (f x))",
-    "SUCC"  -> "λnfx.f (n f x)",
-    "+"     -> "λmnfx.m f (n f x)",
-    "*"     -> "λmn.m (+ n) 0",
-    "^"     -> "λbe.e b",  // exponentiation
-    "PRED"  -> "λnfx.n (λgh.h (g f)) (λu.x) (λu.u)",
-    "-"     -> "λmn.n PRED m",
-    "TRUE"  -> "λxy.x",
+    "0" -> "λfx.x",
+    "1" -> "λfx.f x",
+    "2" -> "λfx.f (f x)",
+    "3" -> "λfx.f (f (f x))",
+    "SUCC" -> "λnfx.f (n f x)",
+    "+" -> "λmnfx.m f (n f x)",
+    "*" -> "λmn.m (+ n) 0",
+    "^" -> "λbe.e b", // exponentiation
+    "PRED" -> "λnfx.n (λgh.h (g f)) (λu.x) (λu.u)",
+    "-" -> "λmn.n PRED m",
+    "TRUE" -> "λxy.x",
     "FALSE" -> "λxy.y",
-    "&&"    -> "λpq.p q p",
-    "||"    -> "λpq.p p q",
-    "!"     -> "λpab.p b a"  // negation
-  )
+    "&&" -> "λpq.p q p",
+    "||" -> "λpq.p p q",
+    "!" -> "λpab.p b a", /* negation */
+    "ISZERO" -> "λn.n (λx.FALSE) TRUE",
+    "AND" -> "λpq.p q p",
+    "OR" -> "λpq.p p q",
+    "NOT" -> "λpab.p b a",
+    "IFTHENELSE" -> "λpab.p a b",
+    "LEQ" -> "λmn.ISZERO (- m n)",
+    "==" -> "λmn. AND (LEQ m n) (LEQ n m)",
+    "Y" -> "λf·(λx·f (x x)) (λx·f (x x))",
+    "Z" -> "λf. (λx. f (λy. x x y)) (λx. f (λy. x x y))")
 }

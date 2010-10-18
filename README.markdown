@@ -1,3 +1,8 @@
+Personal tweaks on top of:
+
+  http://github.com/hallettj/LambdaCalculus
+
+
 LambdaCalculus
 ==============
 
