@@ -8,7 +8,8 @@ sealed abstract class Expression {
   def substitute(variable: Var, replacement: Expression): Expression
 
   def freeVars: Set[Var]
-  def toString: String
+
+  override def toString: String = PrettyPrinter.print(this)
 
   def α_==(other: Expression) = alphaEquivalent(other)
 
@@ -55,8 +56,6 @@ case class Var(name: String) extends Expression {
 
   def freeVars: Set[Var] = Set(this)
 
-  override def toString: String = name
-
   def alphaEquivalent(other: Expression): Boolean = cond(other) { case Var(name2) => name == name2 }
 
 }
@@ -90,8 +89,6 @@ case class Abstraction(argument: Var, body: Expression) extends Expression {
     case Abstraction(otherArgument, otherBody) => body alphaEquivalent otherBody.substitute(otherArgument, argument)
   }
 
-  override def toString: String = String.format("λ%s·%s", argument, body)
-
 }
 
 case class Application(function: Expression, argument: Expression) extends Expression {
@@ -100,18 +97,6 @@ case class Application(function: Expression, argument: Expression) extends Expre
     Application(function.substitute(variable, replacement), argument.substitute(variable, replacement))
 
   def freeVars: Set[Var] = function.freeVars ++ argument.freeVars
-
-  override def toString: String = {
-    val left = function match {
-      case Abstraction(_, _) => "(" + function + ")"
-      case _ => function
-    }
-    val right = argument match {
-      case Var(_) => argument
-      case _ => "(" + argument + ")"
-    }
-    left + " " + right
-  }
 
   def alphaEquivalent(other: Expression): Boolean = cond(other) {
     case Application(otherFunction, otherArgument) => (function alphaEquivalent otherFunction) && (argument alphaEquivalent otherArgument)
@@ -151,6 +136,33 @@ class LambdaParsers extends RegexParsers {
   }
 }
 
+object PrettyPrinter {
+
+  def print(expression: Expression): String = expression match {
+    case Application(left, right) => 
+      val leftStr = left match {
+        case Abstraction(_, _) => "(" + print(left) + ")"
+        case _ => print(left)
+      }
+      val rightStr = right match { 
+        case Var(_) => print(right)
+        case _ => "(" + print(right) + ")"
+      }
+      leftStr + " " + rightStr
+    case abstraction@Abstraction(_, _) =>
+      def getVarsAndBody(e: Expression): (List[Var], Expression) = e match {
+        case Abstraction(argument, body) =>
+          val (subVars, subExpr) = getVarsAndBody(body)
+          ((argument :: subVars), subExpr)
+        case other => (Nil, other)
+      }
+      val (vars, subExpr) = getVarsAndBody(abstraction)
+      "λ" + (vars map { _.name } mkString) + "·"+ print(subExpr)
+    case Var(name) => name
+  }
+
+}
+
 object Expression extends LambdaParsers {
 
   def main(args: Array[String]) {
@@ -158,6 +170,15 @@ object Expression extends LambdaParsers {
       val exp = Expression(arg)
       exp evaluate { println(_) }
     }
+  }
+
+  def apply(n: Int): Expression = {
+    require(n >= 0)
+    val x = Var("x")
+    val f = Var("f")
+    var body: Expression = x
+    for (i <- 1 to n) { body = Application(f, body) }
+    Abstraction(f, Abstraction(x, body))
   }
 
   def apply(input: String): Expression = {
@@ -169,6 +190,7 @@ object Expression extends LambdaParsers {
   lazy val constants = sources transform { (name, src) => Expression(src) }
 
   implicit def string2Expression(s: String): Expression = Expression(s)
+  implicit def int2Expression(n: Int): Expression = Expression(n)
 
   private[lambdacalculus] val sources = Map(
     "0" -> "λfx.x",
@@ -195,4 +217,29 @@ object Expression extends LambdaParsers {
     "==" -> "λmn. AND (LEQ m n) (LEQ n m)",
     "Y" -> "λf·(λx·f (x x)) (λx·f (x x))",
     "Z" -> "λf. (λx. f (λy. x x y)) (λx. f (λy. x x y))")
+}
+
+object Constants {
+
+    val SUCC = Expression("λnfx.f (n f x)")
+    val + = Expression("λmnfx.m f (n f x)")
+    val * = Expression("λmn.m (+ n) 0")
+    val ^ = Expression("λbe.e b")
+    val PRED = Expression("λnfx.n (λgh.h (g f)) (λu.x) (λu.u)")
+    val - = Expression("λmn.n PRED m")
+    val TRUE = Expression("λxy.x")
+    val FALSE = Expression("λxy.y")
+    val && = Expression("λpq.p q p")
+    val || = Expression("λpq.p p q")
+    val ! = Expression("λpab.p b a")
+    val ISZERO = Expression("λn.n (λx.FALSE) TRUE")
+    val AND = Expression("λpq.p q p")
+    val OR = Expression("λpq.p p q")
+    val NOT = Expression("λpab.p b a")
+    val IFTHENELSE = Expression("λpab.p a b")
+    val LEQ = Expression("λmn.ISZERO (- m n)")
+    val == = Expression("λmn. AND (LEQ m n) (LEQ n m)")
+    val Y = Expression("λf·(λx·f (x x)) (λx·f (x x))")
+    val Z = Expression("λf. (λx. f (λy. x x y)) (λx. f (λy. x x y))")
+
 }
