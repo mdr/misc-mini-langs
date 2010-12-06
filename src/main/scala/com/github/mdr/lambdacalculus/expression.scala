@@ -1,41 +1,33 @@
-package us.sitr.lambdacalculus
+package com.github.mdr.lambdacalculus
 
 import scala.util.parsing.combinator._
+import PartialFunction.cond
 
 sealed abstract class Expression {
-  def substitute(orig: Var, sub: Expression): Expression
+
+  def substitute(variable: Var, replacement: Expression): Expression
+
   def freeVars: Set[Var]
-  def boundVars: Set[Var]
   def toString: String
 
-  def alphaConversion(conflicting: Set[Var]): Expression = this match {
-    case Var(_) => this
-    case Function(arg, body) =>
-      if (conflicting contains arg) {
-        val newArg = arg.prime(conflicting ++ this.boundVars)
-        Function(newArg, body.substitute(arg, newArg))
-      } else
-        Function(arg, body alphaConversion conflicting)
-    case Application(a, b) =>
-      Application(a alphaConversion conflicting,
-        b alphaConversion conflicting)
-  }
+  def α_==(other: Expression) = alphaEquivalent(other)
+
+  def alphaEquivalent(other: Expression): Boolean
 
   def betaReduction: Expression = this match {
-    case Application(Function(arg, body), b) => body.substitute(arg, b)
-    case Application(a, b) => {
+    case Application(Abstraction(arg, body), b) => body.substitute(arg, b)
+    case Application(a, b) =>
       val left = Application(a.betaReduction, b)
       if (left != this)
         left
       else
         Application(a, b.betaReduction)
-    }
-    case Function(arg, body) => Function(arg, body.betaReduction)
+    case Abstraction(arg, body) => Abstraction(arg, body.betaReduction)
     case _ => this
   }
 
   def etaConversion: Expression = this match {
-    case Function(x, Application(f, y)) if x == y =>
+    case Abstraction(x, Application(f, y)) if x == y =>
       if (f.freeVars contains x) this else f
     case _ => this
   }
@@ -57,63 +49,61 @@ sealed abstract class Expression {
 }
 
 case class Var(name: String) extends Expression {
-  def substitute(orig: Var, sub: Expression): Expression =
-    if (orig == this) sub else this
+
+  def substitute(variable: Var, replacement: Expression): Expression =
+    if (variable == this) replacement else this
 
   def freeVars: Set[Var] = Set(this)
-  def boundVars: Set[Var] = Set()
 
   override def toString: String = name
 
-  /**
-   * Adds prime (') to the variable name as many times as is necessary to get a
-   * variable name that does not conflict with anything in `conflicting`.
-   */
-  private[lambdacalculus] def prime(conflicting: Set[Var]): Var = {
-    val newVar = Var(name + "'")
-    if (conflicting contains newVar)
-      newVar.prime(conflicting)
-    else
-      newVar
-  }
+  def alphaEquivalent(other: Expression): Boolean = cond(other) { case Var(name2) => name == name2 }
+
 }
 
-case class Function(argument: Var, body: Expression) extends Expression {
-  def substitute(orig: Var, sub: Expression): Expression = {
-    if (orig != argument) {
-      if ((sub.freeVars) contains argument)
-        (this alphaConversion sub.freeVars).substitute(orig, sub)
-      else
-        Function(argument, body.substitute(orig, sub))
-    } else
+object VariableNames {
+
+  private val letters = "abcdefghijklmnopqrstuvwyz".toList map { _.toString }
+
+  def getFirstNameNotIn(names: Set[String]): String =
+    (letters filterNot names headOption) getOrElse { throw new UnsupportedOperationException("TODO: Add primes") }
+
+}
+
+case class Abstraction(argument: Var, body: Expression) extends Expression {
+
+  def substitute(variable: Var, replacement: Expression): Expression =
+    if (variable == argument)
       this
-  }
+    else if (!body.freeVars.contains(variable))
+      this
+    else if (replacement.freeVars contains argument) {
+      val freeVars = body.freeVars ++ replacement.freeVars
+      val freshVar = Var(VariableNames.getFirstNameNotIn(freeVars map { _.name }))
+      Abstraction(freshVar, body.substitute(argument, freshVar).substitute(variable, replacement))
+    } else
+      copy(body = body.substitute(variable, replacement))
 
   def freeVars: Set[Var] = body.freeVars - argument
-  def boundVars: Set[Var] = body.boundVars + argument
+
+  def alphaEquivalent(other: Expression): Boolean = cond(other) {
+    case Abstraction(otherArgument, otherBody) => body alphaEquivalent otherBody.substitute(otherArgument, argument)
+  }
 
   override def toString: String = String.format("λ%s·%s", argument, body)
 
-  /**
-   * `equals` is overriden here to capture alpha-equivalence.
-   */
-  override def equals(other: Any): Boolean = other match {
-    case Function(a, b) =>
-      (a == argument && b == body) || body == b.substitute(a, argument)
-    case _ => false
-  }
 }
 
 case class Application(function: Expression, argument: Expression) extends Expression {
-  def substitute(orig: Var, sub: Expression): Expression =
-    Application(function.substitute(orig, sub), argument.substitute(orig, sub))
+
+  def substitute(variable: Var, replacement: Expression): Expression =
+    Application(function.substitute(variable, replacement), argument.substitute(variable, replacement))
 
   def freeVars: Set[Var] = function.freeVars ++ argument.freeVars
-  def boundVars: Set[Var] = function.boundVars ++ argument.boundVars
 
   override def toString: String = {
     val left = function match {
-      case Function(_, _) => "(" + function + ")"
+      case Abstraction(_, _) => "(" + function + ")"
       case _ => function
     }
     val right = argument match {
@@ -122,6 +112,11 @@ case class Application(function: Expression, argument: Expression) extends Expre
     }
     left + " " + right
   }
+
+  def alphaEquivalent(other: Expression): Boolean = cond(other) {
+    case Application(otherFunction, otherArgument) => (function alphaEquivalent otherFunction) && (argument alphaEquivalent otherArgument)
+  }
+
 }
 
 class LambdaParsers extends RegexParsers {
@@ -135,7 +130,7 @@ class LambdaParsers extends RegexParsers {
 
   def function: Parser[Expression] =
     (lambda ~> arguments <~ dot) ~ expression ^^ {
-      case args ~ exp => (args :\ exp) { Function(_, _) }
+      case args ~ exp => (args :\ exp) { Abstraction(_, _) }
     }
 
   def application: Parser[Expression] =
@@ -157,6 +152,7 @@ class LambdaParsers extends RegexParsers {
 }
 
 object Expression extends LambdaParsers {
+
   def main(args: Array[String]) {
     for (arg <- args) {
       val exp = Expression(arg)
