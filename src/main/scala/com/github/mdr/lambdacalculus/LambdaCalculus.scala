@@ -105,16 +105,11 @@ case class Application(function: Expression, argument: Expression) extends Expre
 }
 
 class LambdaParsers extends RegexParsers {
-  def expression: Parser[Expression] = (application
-    | simpleExpression)
+  def expression: Parser[Expression] = application | simpleExpression
 
-  def simpleExpression: Parser[Expression] = (function
-    | variable
-    | num
-    | constant
-    | "(" ~> expression <~ ")")
+  def simpleExpression: Parser[Expression] = abstraction | variable | num | constant | "(" ~> expression <~ ")"
 
-  def function: Parser[Expression] =
+  def abstraction: Parser[Expression] =
     (lambda ~> arguments <~ dot) ~ expression ^^ {
       case args ~ exp => (args :\ exp) { Abstraction(_, _) }
     }
@@ -163,18 +158,27 @@ object ChurchNumeral {
 
 }
 
-case class PrettyPrinter(abbreviateChurchNumerals: Boolean = true) {
+case class PrettyPrinter(abbreviateChurchNumerals: Boolean = true, omitParens: Boolean = true) {
 
-  def print(expression: Expression): String = expression match {
+  def print(expression: Expression): String = if (omitParens) printWithoutParens(expression) else printWithParens(expression)
+
+  private def printWithParens(expression: Expression): String = expression match {
+    case ChurchNumeral(n) if abbreviateChurchNumerals => n.toString
+    case Application(left, right) => "(" + printWithParens(left) + " " + printWithParens(right) + ")"
+    case Abstraction(variable, body) => "(" + "λ" + variable + "·" + printWithParens(body) + ")"
+    case Var(name) => name
+  }
+
+  private def printWithoutParens(expression: Expression): String = expression match {
     case ChurchNumeral(n) if abbreviateChurchNumerals => n.toString
     case Application(left, right) =>
       val leftStr = left match {
-        case Abstraction(_, _) => "(" + print(left) + ")"
-        case _ => print(left)
+        case Abstraction(_, _) => "(" + printWithoutParens(left) + ")"
+        case _ => printWithoutParens(left)
       }
       val rightStr = right match {
-        case Var(_) => print(right)
-        case _ => "(" + print(right) + ")"
+        case Var(_) => printWithoutParens(right)
+        case _ => "(" + printWithoutParens(right) + ")"
       }
       leftStr + " " + rightStr
     case abstraction@Abstraction(_, _) =>
@@ -185,7 +189,7 @@ case class PrettyPrinter(abbreviateChurchNumerals: Boolean = true) {
         case other => (Nil, other)
       }
       val (vars, subExpr) = getVarsAndBody(abstraction)
-      "λ" + (vars map { _.name } mkString) + "·" + print(subExpr)
+      "λ" + (vars map { _.name } mkString) + "·" + printWithoutParens(subExpr)
     case Var(name) => name
   }
 
