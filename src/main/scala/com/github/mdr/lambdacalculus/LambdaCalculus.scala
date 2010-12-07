@@ -119,27 +119,27 @@ case class Var(name: String) extends Expression {
 
 }
 
-case class Abstraction(argument: Var, body: Expression) extends Expression {
+case class Abstraction(parameter: Var, body: Expression) extends Expression {
 
   def substitute(variable: Var, replacement: Expression): Expression =
-    if (variable == argument)
+    if (variable == parameter)
       this
     else if (!body.freeVars.contains(variable))
       this
-    else if (replacement.freeVars contains argument) {
+    else if (replacement.freeVars contains parameter) {
       val freeVars = body.freeVars ++ replacement.freeVars
       val freshVar = Var(VariableNames.getFirstNameNotIn(freeVars map { _.name }))
-      Abstraction(freshVar, body.substitute(argument, freshVar).substitute(variable, replacement))
+      Abstraction(freshVar, body.substitute(parameter, freshVar).substitute(variable, replacement))
     } else
       copy(body = body.substitute(variable, replacement))
 
-  def freeVars: Set[Var] = body.freeVars - argument
+  def freeVars: Set[Var] = body.freeVars - parameter
 
   def alphaEquivalent(other: Expression): Boolean = cond(other) {
-    case Abstraction(otherArgument, otherBody) => body alphaEquivalent otherBody.substitute(otherArgument, argument)
+    case Abstraction(otherArgument, otherBody) => body alphaEquivalent otherBody.substitute(otherArgument, parameter)
   }
 
-  def contains(other: Expression) = argument == other || (body contains other)
+  def contains(other: Expression) = parameter == other || (body contains other)
 
   def redexes = body.redexes map { redex => redex.prependChoice(true) }
 
@@ -207,7 +207,7 @@ class LambdaParsers extends RegexParsers {
   def simpleExpression: Parser[Expression] = abstraction | variable | num | constant | "(" ~> expression <~ ")"
 
   def abstraction: Parser[Expression] =
-    (lambda ~> arguments <~ dot) ~ expression ^^ {
+    (lambda ~> parameters <~ dot) ~ expression ^^ {
       case args ~ exp => (args :\ exp) { Abstraction(_, _) }
     }
 
@@ -216,7 +216,7 @@ class LambdaParsers extends RegexParsers {
       case exp ~ exps => (exp /: exps) { (app, e) => Application(app, e) }
     }
 
-  def arguments: Parser[List[Var]] = rep1(variable)
+  def parameters: Parser[List[Var]] = rep1(variable)
 
   def lambda: Parser[String] = """\\|λ""".r
 
@@ -334,7 +334,7 @@ object Constants {
 
 object DelMe {
 
-  var e = Expression("+ 3 4")
+  var e = Expression("""(\xyz.xz(yz))((\xy.yx)u)((\xy.yx)v)w""")
   var continue = true
   while (continue) {
     println(e)
