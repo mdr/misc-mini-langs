@@ -56,7 +56,7 @@ sealed abstract trait Expression {
 
   def apply(other: Expression) = Application(this, other)
 
-  override def toString: String = PrettyPrinter(abbreviateChurchNumerals = false).print(this)
+  override def toString: String = PrettyPrinter(abbreviateChurchNumerals = true).print(this)
 
 }
 
@@ -71,15 +71,14 @@ object Expression extends LambdaParsers {
   }
 
   lazy val constants = sources transform { (name, src) => Expression(src) }
-
+  lazy val constantsToString = constants map { _.swap }
   implicit def string2Expression(s: String): Expression = Expression(s)
   implicit def int2Expression(n: Int): Expression = Expression(n)
 
   private[lambdacalculus] val sources = Map(
-    "0" -> "λfx.x",
-    "1" -> "λfx.f x",
-    "2" -> "λfx.f (f x)",
-    "3" -> "λfx.f (f (f x))",
+    "PAIR" -> "λabf. f a b",
+    "FST" -> "λp.p λab. a",
+    "SND" -> "λp.p λab. b",
     "SUCC" -> "λnfx.f (n f x)",
     "+" -> "λmnfx.m f (n f x)",
     "*" -> "λmn.m (+ n) 0",
@@ -177,7 +176,7 @@ case class Application(function: Expression, argument: Expression) extends Expre
     if (choices.isEmpty) {
       function match {
         case Abstraction(variable, body) => body.substitute(variable, argument)
-        case _ =>  throw new IllegalArgumentException("Invalid contraction of redex: " + this)
+        case _ => throw new IllegalArgumentException("Invalid contraction of redex: " + this)
       }
     } else if (choices.head == false)
       copy(function = function contract position.tail)
@@ -270,11 +269,24 @@ object ChurchNumeral {
 
 }
 
-case class PrettyPrinter(abbreviateChurchNumerals: Boolean = true, omitParens: Boolean = true) {
+case class PrettyPrinter(
+  abbreviateChurchNumerals: Boolean = true,
+  abbreviateConstants: Boolean = true,
+  omitParens: Boolean = true) {
 
-  def print(expression: Expression): String = if (omitParens) printWithoutParens(expression) else printWithParens(expression)
+  def print(expression: Expression): String =
+    if (omitParens) printWithoutParens(expression)
+    else printWithParens(expression)
+
+
+  object Constant {
+    def unapply(expression: Expression): Option[String] = 
+       (for ((s, e) <- Expression.constants if expression alphaEquivalent e) yield s).headOption
+    
+  }
 
   private def printWithParens(expression: Expression): String = expression match {
+    case Constant(s) if abbreviateConstants => s
     case ChurchNumeral(n) if abbreviateChurchNumerals => n.toString
     case Application(left, right) => "(" + printWithParens(left) + " " + printWithParens(right) + ")"
     case Abstraction(variable, body) => "(" + "λ" + variable + "·" + printWithParens(body) + ")"
@@ -282,15 +294,20 @@ case class PrettyPrinter(abbreviateChurchNumerals: Boolean = true, omitParens: B
   }
 
   private def printWithoutParens(expression: Expression): String = expression match {
+    case Constant(s) if abbreviateConstants => s
     case ChurchNumeral(n) if abbreviateChurchNumerals => n.toString
     case Application(left, right) =>
       val leftStr = left match {
+        case Constant(s) => s
+        case ChurchNumeral(n) => n.toString
         case Abstraction(_, _) => "(" + printWithoutParens(left) + ")"
         case _ => printWithoutParens(left)
       }
       val rightStr = right match {
-        case Var(_) => printWithoutParens(right)
-        case _ => "(" + printWithoutParens(right) + ")"
+        case Constant(s) => s
+        case ChurchNumeral(n) => n.toString
+        case Abstraction(_, _) | Application(_, _) => "(" + printWithoutParens(right) + ")"
+        case _ => printWithoutParens(right)
       }
       leftStr + " " + rightStr
     case abstraction@Abstraction(_, _) =>
@@ -309,6 +326,9 @@ case class PrettyPrinter(abbreviateChurchNumerals: Boolean = true, omitParens: B
 
 object Constants {
 
+  val PAIR = Expression("λabf. f a b")
+  val FST = Expression("λp.p λab. a")
+  val SND = Expression("λp.p λab. b")
   val SUCC = Expression("λnfx.f (n f x)")
   val + = Expression("λmnfx.m f (n f x)")
   val * = Expression("λmn.m (+ n) 0")
