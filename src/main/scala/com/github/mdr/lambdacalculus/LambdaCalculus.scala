@@ -13,7 +13,7 @@ sealed abstract trait Expression {
 
   private[lambdacalculus] def getBoundVariables(bindingVariables: Set[Variable]): Set[Variable]
 
-  def redexes: Set[Redex]
+  def redexes: List[Redex]
 
   def isABetaNormalForm = redexes.isEmpty
 
@@ -122,7 +122,7 @@ object Expression extends LambdaParsers {
     "K" -> "λab.a",
     "I" -> "λa.a",
     "FACT" -> "λfn. (ISZERO n) 1 (* n (f (PRED n)))")
- 
+
 }
 
 case class Variable(name: String) extends Expression {
@@ -139,7 +139,7 @@ case class Variable(name: String) extends Expression {
 
   def contains(other: Expression) = this == other
 
-  def redexes = Set()
+  def redexes = List()
 
   def contract(position: Position): Expression = throw new IllegalArgumentException("Invalid contraction of redex: " + this)
 
@@ -431,6 +431,35 @@ object DelMe {
       case None =>
         continue = false
     }
+  }
+
+}
+
+object Interactive {
+
+  def start(initialExpr: Expression) {
+    var currentExpr = initialExpr
+    while (true) {
+      println(currentExpr)
+      val redexes = currentExpr.redexes
+      if (redexes.isEmpty)
+        return
+      for ((redex, index) <- redexes.zipWithIndex)
+        println(index + ": " + redex)
+      val line = readLine()
+      if (line.toLowerCase.startsWith("q"))
+        return
+      else {
+        try {
+          val index = Integer.parseInt(line.trim)
+          currentExpr = currentExpr.contract(redexes(index))
+        } catch {
+          case e: NumberFormatException =>
+        }
+
+      }
+    }
+
   }
 
 }
