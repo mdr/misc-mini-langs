@@ -5,9 +5,13 @@ import PartialFunction._
 
 sealed abstract trait Expression {
 
-  def substitute(variable: Var, replacement: Expression): Expression
+  def substitute(variable: Variable, replacement: Expression): Expression
 
-  def freeVars: Set[Var]
+  def freeVariables: Set[Variable]
+
+  def boundVariables: Set[Variable] = getBoundVariables(Set())
+
+  private[lambdacalculus] def getBoundVariables(bindingVariables: Set[Variable]): Set[Variable]
 
   def redexes: Set[Redex]
 
@@ -23,6 +27,8 @@ sealed abstract trait Expression {
 
   def contains(other: Expression): Boolean
 
+  def b = betaReduction
+
   def betaReduction: Expression = this match {
     case Application(Abstraction(arg, body), b) => body.substitute(arg, b)
     case Application(a, b) =>
@@ -37,7 +43,7 @@ sealed abstract trait Expression {
 
   def etaConversion: Expression = this match {
     case Abstraction(x, Application(f, y)) if x == y =>
-      if (f.freeVars contains x) this else f
+      if (f.freeVariables contains x) this else f
     case _ => this
   }
 
@@ -56,11 +62,17 @@ sealed abstract trait Expression {
 
   def apply(other: Expression) = Application(this, other)
 
-  override def toString: String = PrettyPrinter(abbreviateChurchNumerals = true).print(this)
+  import Expression._
+  override def toString: String =
+    PrettyPrinter(abbreviateChurchNumerals, abbreviateConstants, omitParentheses).print(this)
 
 }
 
 object Expression extends LambdaParsers {
+
+  var abbreviateChurchNumerals = true
+  var abbreviateConstants = true
+  var omitParentheses = true
 
   def apply(n: Int): Expression = ChurchNumeral(n)
 
@@ -74,6 +86,11 @@ object Expression extends LambdaParsers {
   lazy val constantsToString = constants map { _.swap }
   implicit def string2Expression(s: String): Expression = Expression(s)
   implicit def int2Expression(n: Int): Expression = Expression(n)
+
+  implicit def string2Expressionable(s: String): Expressionable = new Expressionable(s)
+  class Expressionable(s: String) {
+    def e = Expression(s)
+  }
 
   private[lambdacalculus] val sources = Map(
     "PAIR" -> "λabf. f a b",
@@ -98,17 +115,27 @@ object Expression extends LambdaParsers {
     "LEQ" -> "λmn.ISZERO (- m n)",
     "==" -> "λmn. AND (LEQ m n) (LEQ n m)",
     "Y" -> "λf·(λx·f (x x)) (λx·f (x x))",
-    "Z" -> "λf. (λx. f (λy. x x y)) (λx. f (λy. x x y))")
+    "Z" -> "λf. (λx. f (λy. x x y)) (λx. f (λy. x x y))",
+    "U" -> "λux.x(uux)",
+    "V" -> "λy.x(yy)",
+    "S" -> "λabc.ac(bc)",
+    "K" -> "λab.a",
+    "I" -> "λa.a",
+    "FACT" -> "λfn. (ISZERO n) 1 (* n (f (PRED n)))")
+ 
 }
 
-case class Var(name: String) extends Expression {
+case class Variable(name: String) extends Expression {
 
-  def substitute(variable: Var, replacement: Expression): Expression =
+  def substitute(variable: Variable, replacement: Expression): Expression =
     if (variable == this) replacement else this
 
-  def freeVars: Set[Var] = Set(this)
+  def freeVariables: Set[Variable] = Set(this)
 
-  def alphaEquivalent(other: Expression): Boolean = cond(other) { case Var(name2) => name == name2 }
+  private[lambdacalculus] def getBoundVariables(bindingVariables: Set[Variable]): Set[Variable] =
+    if (bindingVariables contains this) Set(this) else Set()
+
+  def alphaEquivalent(other: Expression): Boolean = cond(other) { case Variable(name2) => name == name2 }
 
   def contains(other: Expression) = this == other
 
@@ -118,21 +145,24 @@ case class Var(name: String) extends Expression {
 
 }
 
-case class Abstraction(parameter: Var, body: Expression) extends Expression {
+case class Abstraction(parameter: Variable, body: Expression) extends Expression {
 
-  def substitute(variable: Var, replacement: Expression): Expression =
+  def substitute(variable: Variable, replacement: Expression): Expression =
     if (variable == parameter)
       this
-    else if (!body.freeVars.contains(variable))
+    else if (!body.freeVariables.contains(variable))
       this
-    else if (replacement.freeVars contains parameter) {
-      val freeVars = body.freeVars ++ replacement.freeVars
-      val freshVar = Var(VariableNames.getFirstNameNotIn(freeVars map { _.name }))
+    else if (replacement.freeVariables contains parameter) {
+      val freeVariables = body.freeVariables ++ replacement.freeVariables
+      val freshVar = Variable(VariableNames.getFirstNameNotIn(freeVariables map { _.name }))
       Abstraction(freshVar, body.substitute(parameter, freshVar).substitute(variable, replacement))
     } else
       copy(body = body.substitute(variable, replacement))
 
-  def freeVars: Set[Var] = body.freeVars - parameter
+  def freeVariables: Set[Variable] = body.freeVariables - parameter
+
+  private[lambdacalculus] def getBoundVariables(bindingVariables: Set[Variable]) =
+    body.getBoundVariables(bindingVariables + parameter) + parameter
 
   def alphaEquivalent(other: Expression): Boolean = cond(other) {
     case Abstraction(otherArgument, otherBody) => body alphaEquivalent otherBody.substitute(otherArgument, parameter)
@@ -156,10 +186,13 @@ case class Abstraction(parameter: Var, body: Expression) extends Expression {
 
 case class Application(function: Expression, argument: Expression) extends Expression {
 
-  def substitute(variable: Var, replacement: Expression): Expression =
+  def substitute(variable: Variable, replacement: Expression): Expression =
     Application(function.substitute(variable, replacement), argument.substitute(variable, replacement))
 
-  def freeVars: Set[Var] = function.freeVars ++ argument.freeVars
+  def freeVariables: Set[Variable] = function.freeVariables ++ argument.freeVariables
+
+  private[lambdacalculus] def getBoundVariables(bindingVariables: Set[Variable]): Set[Variable] =
+    function.getBoundVariables(bindingVariables) ++ argument.getBoundVariables(bindingVariables)
 
   def alphaEquivalent(other: Expression): Boolean = cond(other) {
     case Application(otherFunction, otherArgument) => (function alphaEquivalent otherFunction) && (argument alphaEquivalent otherArgument)
@@ -215,13 +248,13 @@ class LambdaParsers extends RegexParsers {
       case exp ~ exps => (exp /: exps) { (app, e) => Application(app, e) }
     }
 
-  def parameters: Parser[List[Var]] = rep1(variable)
+  def parameters: Parser[List[Variable]] = rep1(variable)
 
   def lambda: Parser[String] = """\\|λ""".r
 
   def dot: Parser[String] = ".|·".r
 
-  def variable: Parser[Var] = """[a-z]'*""".r ^^ { Var(_) }
+  def variable: Parser[Variable] = """[a-z]'*""".r ^^ { Variable(_) }
 
   def num: Parser[Expression] = """[0-9]+""".r ^^ { s => ChurchNumeral(Integer.parseInt(s)) }
 
@@ -249,8 +282,8 @@ object ChurchNumeral {
 
   def apply(n: Int): Expression = {
     require(n >= 0)
-    val x = Var("x")
-    val f = Var("f")
+    val x = Variable("x")
+    val f = Variable("f")
     var body: Expression = x
     for (i <- 1 to n) { body = Application(f, body) }
     Abstraction(f, Abstraction(x, body))
@@ -261,7 +294,7 @@ object ChurchNumeral {
     case _ => None
   }
 
-  def iteratedApplication(functionVar: Var, zeroVar: Var, expression: Expression): Option[Int] = expression match {
+  def iteratedApplication(functionVar: Variable, zeroVar: Variable, expression: Expression): Option[Int] = expression match {
     case `zeroVar` => Some(0)
     case Application(`functionVar`, subExpression) => iteratedApplication(functionVar, zeroVar, subExpression) map { _ + 1 }
     case _ => None
@@ -278,11 +311,10 @@ case class PrettyPrinter(
     if (omitParens) printWithoutParens(expression)
     else printWithParens(expression)
 
-
   object Constant {
-    def unapply(expression: Expression): Option[String] = 
-       (for ((s, e) <- Expression.constants if expression alphaEquivalent e) yield s).headOption
-    
+    def unapply(expression: Expression): Option[String] =
+      (for ((s, e) <- Expression.constants if expression alphaEquivalent e) yield s).headOption
+
   }
 
   private def printWithParens(expression: Expression): String = expression match {
@@ -290,7 +322,7 @@ case class PrettyPrinter(
     case ChurchNumeral(n) if abbreviateChurchNumerals => n.toString
     case Application(left, right) => "(" + printWithParens(left) + " " + printWithParens(right) + ")"
     case Abstraction(variable, body) => "(" + "λ" + variable + "·" + printWithParens(body) + ")"
-    case Var(name) => name
+    case Variable(name) => name
   }
 
   private def printWithoutParens(expression: Expression): String = expression match {
@@ -298,33 +330,36 @@ case class PrettyPrinter(
     case ChurchNumeral(n) if abbreviateChurchNumerals => n.toString
     case Application(left, right) =>
       val leftStr = left match {
-        case Constant(s) => s
-        case ChurchNumeral(n) => n.toString
+        case Constant(s) if abbreviateConstants => s
+        case ChurchNumeral(n) if abbreviateChurchNumerals => n.toString
         case Abstraction(_, _) => "(" + printWithoutParens(left) + ")"
         case _ => printWithoutParens(left)
       }
       val rightStr = right match {
-        case Constant(s) => s
-        case ChurchNumeral(n) => n.toString
+        case Constant(s) if abbreviateConstants => s
+        case ChurchNumeral(n) if abbreviateChurchNumerals => n.toString
         case Abstraction(_, _) | Application(_, _) => "(" + printWithoutParens(right) + ")"
         case _ => printWithoutParens(right)
       }
       leftStr + " " + rightStr
     case abstraction@Abstraction(_, _) =>
-      def getVarsAndBody(e: Expression): (List[Var], Expression) = e match {
+      def getVarsAndBody(e: Expression): (List[Variable], Expression) = e match {
+        case Constant(_) if abbreviateConstants => (Nil, e)
+        case ChurchNumeral(_) if abbreviateChurchNumerals => (Nil, e)
         case Abstraction(argument, body) =>
           val (subVars, subExpr) = getVarsAndBody(body)
           ((argument :: subVars), subExpr)
-        case other => (Nil, other)
+        case _ => (Nil, e)
       }
       val (vars, subExpr) = getVarsAndBody(abstraction)
       "λ" + (vars map { _.name } mkString) + "·" + printWithoutParens(subExpr)
-    case Var(name) => name
+    case Variable(name) => name
   }
 
 }
 
 object Constants {
+  import Expression._
 
   val PAIR = Expression("λabf. f a b")
   val FST = Expression("λp.p λab. a")
@@ -349,7 +384,38 @@ object Constants {
   val == = Expression("λmn. AND (LEQ m n) (LEQ n m)")
   val Y = Expression("λf·(λx·f (x x)) (λx·f (x x))")
   val Z = Expression("λf. (λx. f (λy. x x y)) (λx. f (λy. x x y))")
-
+  val U = Expression("U")
+  val V = Expression("V")
+  val S = "S".e
+  val K = "K".e
+  val I = "I".e
+  val FACT = Expression("FACT")
+  val a = "a".e
+  val b = "b".e
+  val c = "c".e
+  val d = "d".e
+  val e = "e".e
+  val f = "f".e
+  val g = "g".e
+  val h = "h".e
+  val i = "i".e
+  val j = "j".e
+  val k = "k".e
+  val l = "l".e
+  val m = "m".e
+  val n = "n".e
+  val o = "o".e
+  val p = "p".e
+  val q = "q".e
+  val r = "r".e
+  val s = "s".e
+  val t = "t".e
+  val u = "u".e
+  val v = "v".e
+  val w = "w".e
+  val x = "x".e
+  val y = "y".e
+  val z = "z".e
 }
 
 object DelMe {
