@@ -1,8 +1,9 @@
 package com.github.mdr.combinatorylogic
 
-sealed trait Expression {
+import com.github.mdr.combinatorylogic
+import com.github.mdr.lambdacalculus
 
-  import com.github.mdr.combinatorylogic
+sealed trait Expression {
 
   def r = reduce
   def reduce: Expression = this match {
@@ -26,13 +27,19 @@ sealed trait Expression {
   import Expression._
   override def toString = PrettyPrinter(abbreviateConstants, omitParentheses).print(this)
 
+  def variables: Set[Variable] = Set()
+
 }
 
 case class Variable(name: String) extends Expression {
 
+  override def variables: Set[Variable] = Set(this)
+
 }
 
 case class Application(left: Expression, right: Expression) extends Expression {
+
+  override def variables: Set[Variable] = left.variables ++ right.variables
 
 }
 
@@ -52,6 +59,19 @@ object Expression extends Parser {
   implicit def string2Expressionable(s: String): Expressionable = new Expressionable(s)
   class Expressionable(s: String) {
     def e = Expression(s)
+  }
+
+  def apply(lambdaTerm: lambdacalculus.Expression): Expression = lambdaTerm match {
+    case lambdacalculus.Variable(name) => Variable(name)
+    case lambdacalculus.Application(left, right) => Application(Expression(left), Expression(right))
+    case lambdacalculus.Abstraction(parameter, body) => abstraction(Variable(parameter.name), Expression(body))
+  }
+
+  private def abstraction(variable: Variable, expression: Expression): Expression = expression match {
+    case _ if !expression.variables.contains(variable) => K(expression)
+    case `variable` => I
+    case Application(left, `variable`) if !left.variables.contains(variable) => left
+    case Application(left, right) => S(abstraction(variable, left))(abstraction(variable, right))
   }
 
 }
