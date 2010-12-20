@@ -2,6 +2,8 @@ package com.github.mdr.lambdacalculus
 
 object ChurchNumeral {
 
+  def apply(s: String): Expression = this(Integer.parseInt(s))
+
   def apply(n: Int): Expression = {
     require(n >= 0)
     val x = Variable("x")

@@ -6,29 +6,25 @@ class Parser extends RegexParsers {
 
   def expression: Parser[Expression] = application | simpleExpression
 
-  def simpleExpression: Parser[Expression] = abstraction | variable | num | constant | "(" ~> expression <~ ")"
+  def simpleExpression = abstraction | variable | num | constant | "(" ~> expression <~ ")"
 
-  def abstraction: Parser[Expression] =
-    (lambda ~> parameters <~ dot) ~ expression ^^ {
-      case args ~ exp => (args :\ exp) { Abstraction(_, _) }
-    }
+  def abstraction = (lambda ~> parameters <~ dot) ~ expression ^^ {
+    case params ~ body => params.foldRight(body)(Abstraction)
+  }
 
-  def application: Parser[Expression] =
-    simpleExpression ~ rep1(simpleExpression) ^^ {
-      case exp ~ exps => (exp /: exps) { (app, e) => Application(app, e) }
-    }
+  def lambda = """\\|λ""".r
 
-  def parameters: Parser[List[Variable]] = rep1(variable)
+  def dot = ".|·".r
 
-  def lambda: Parser[String] = """\\|λ""".r
+  def application = chainl1(simpleExpression, success(Application))
 
-  def dot: Parser[String] = ".|·".r
+  def parameters = rep1(variable)
 
-  def variable: Parser[Variable] = """[a-z]'*""".r ^^ { Variable(_) }
+  def variable = """[a-z]'*""".r ^^ Variable
 
-  def num: Parser[Expression] = """[0-9]+""".r ^^ { s => ChurchNumeral(Integer.parseInt(s)) }
+  def num = """[0-9]+""".r ^^ { ChurchNumeral(_) }
 
-  def constant: Parser[Expression] = """[^a-z\\λ\(\)\s\.·']+""".r ^^ {
+  def constant = """[^a-z\\λ\(\)\s\.·']+""".r ^^ {
     case name => Expression(Constants.sources(name))
   }
 

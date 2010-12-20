@@ -14,7 +14,7 @@ sealed abstract trait Expression {
 
   def redexes: List[Redex]
 
-  def isABetaNormalForm = redexes.isEmpty
+  def isInBetaNormalForm = redexes.isEmpty
 
   def contract(redex: Redex): Expression = contract(redex.position)
 
@@ -57,6 +57,7 @@ sealed abstract trait Expression {
       eta
     }
   }
+
   def evaluate: Expression = evaluate { e => () }
 
   def apply(other: Expression) = Application(this, other)
@@ -108,7 +109,7 @@ case class Abstraction(parameter: Variable, body: Expression) extends Expression
     body.getBoundVariables(bindingVariables + parameter) + parameter
 
   def alphaEquivalent(other: Expression): Boolean = cond(other) {
-    case Abstraction(otherArgument, otherBody) => body alphaEquivalent otherBody.substitute(otherArgument, parameter)
+    case Abstraction(otherArgument, otherBody) => body α_== otherBody.substitute(otherArgument, parameter)
   }
 
   def contains(other: Expression) = parameter == other || (body contains other)
@@ -136,27 +137,27 @@ case class Application(function: Expression, argument: Expression) extends Expre
     function.getBoundVariables(bindingVariables) ++ argument.getBoundVariables(bindingVariables)
 
   def alphaEquivalent(other: Expression): Boolean = cond(other) {
-    case Application(otherFunction, otherArgument) => (function alphaEquivalent otherFunction) && (argument alphaEquivalent otherArgument)
+    case Application(otherFunction, otherArgument) => (function α_== otherFunction) && (argument α_== otherArgument)
   }
 
   def contains(other: Expression) = (function contains other) || (argument contains other)
 
-  def redexes = (function.redexes map { _.prependChoice(false) }) ++ (argument.redexes map { _.prependChoice(true) }) ++ condOpt(function) {
-    case Abstraction(argument, body) => Redex(this, Position(Vector()))
-  }
+  def redexes = (function.redexes map { _.prependChoice(false) }) ++
+    (argument.redexes map { _.prependChoice(true) }) ++
+    condOpt(function) {
+      case Abstraction(argument, body) => Redex(this, Position(Vector()))
+    }
 
-  def contract(position: Position): Expression = {
-    val Position(choices) = position
-    if (choices.isEmpty) {
+  def contract(position: Position): Expression =
+    if (position.choices.isEmpty)
       function match {
         case Abstraction(variable, body) => body.substitute(variable, argument)
         case _ => throw new IllegalArgumentException("Invalid contraction of redex: " + this)
       }
-    } else if (choices.head == false)
+    else if (position.choices.head == false)
       copy(function = function contract position.tail)
     else
       copy(argument = argument contract position.tail)
-  }
 
 }
 
@@ -168,10 +169,7 @@ object Expression extends Parser {
 
   def apply(n: Int): Expression = ChurchNumeral(n)
 
-  def apply(input: String): Expression =
-    (parseAll(expression, input): @unchecked) match {
-      case Success(e, _) => e
-    }
+  def apply(input: String): Expression = parseAll(expression, input).get
 
   implicit def string2Expression(s: String): Expression = Expression(s)
   implicit def int2Expression(n: Int): Expression = Expression(n)
