@@ -1,11 +1,11 @@
 package com.github.mdr.combinatorylogic
 
-import Expression._
+import Term._
 import PartialFunction._
 
 object Constants {
 
-  lazy val constants = sources transform { case (_, e) => Expression(e) }
+  lazy val constants = sources transform { case (_, t) ⇒ Term(t) }
 
   private[combinatorylogic] val sources = Map(
     "B" -> "S(KS)K",
@@ -13,81 +13,75 @@ object Constants {
     "C" -> "S(B B S)(KK)",
     "W" -> "SS(KI)")
 
-  object Patterns {
-    object B {
-      def unapply(e: Expression) = condOpt(e) { case S * (K * S) * K => true }
-    }
-  }
+  val B = "B".t
+  val C = "C".t
+  val W = "W".t
 
-  val B = "B".e
-  val C = "C".e
-  val W = "W".e
+  val a = "a".t
+  val b = "b".t
+  val c = "c".t
+  val d = "d".t
+  val e = "e".t
+  val f = "f".t
+  val g = "g".t
+  val h = "h".t
+  val i = "i".t
+  val j = "j".t
+  val k = "k".t
+  val l = "l".t
+  val m = "m".t
+  val n = "n".t
+  val o = "o".t
+  val p = "p".t
+  val q = "q".t
+  val r = "r".t
+  val s = "s".t
+  val t = "t".t
+  val u = "u".t
+  val v = "v".t
+  val w = "w".t
+  val x = "x".t
+  val y = "y".t
+  val z = "z".t
 
-  val a = "a".e
-  val b = "b".e
-  val c = "c".e
-  val d = "d".e
-  val e = "e".e
-  val f = "f".e
-  val g = "g".e
-  val h = "h".e
-  val i = "i".e
-  val j = "j".e
-  val k = "k".e
-  val l = "l".e
-  val m = "m".e
-  val n = "n".e
-  val o = "o".e
-  val p = "p".e
-  val q = "q".e
-  val r = "r".e
-  val s = "s".e
-  val t = "t".e
-  val u = "u".e
-  val v = "v".e
-  val w = "w".e
-  val x = "x".e
-  val y = "y".e
-  val z = "z".e
+  class HasConstantMethods(term: Term) {
 
-  class HasConstantMethods(exp: Expression) {
+    def a = term("a")
+    def b = term("b")
+    def c = term("c")
+    def d = term("d")
+    def e = term("e")
+    def f = term("f")
+    def g = term("g")
+    def h = term("h")
+    def i = term("i")
+    def j = term("j")
+    def k = term("k")
+    def l = term("l")
+    def m = term("m")
+    def n = term("n")
+    def o = term("o")
+    def p = term("p")
+    def q = term("q")
+    def r = term("r")
+    def s = term("s")
+    def t = term("t")
+    def u = term("u")
+    def v = term("v")
+    def w = term("w")
+    def x = term("x")
+    def y = term("y")
+    def z = term("z")
 
-    def a = exp("a")
-    def b = exp("b")
-    def c = exp("c")
-    def d = exp("d")
-    def e = exp("e")
-    def f = exp("f")
-    def g = exp("g")
-    def h = exp("h")
-    def i = exp("i")
-    def j = exp("j")
-    def k = exp("k")
-    def l = exp("l")
-    def m = exp("m")
-    def n = exp("n")
-    def o = exp("o")
-    def p = exp("p")
-    def q = exp("q")
-    def r = exp("r")
-    def s = exp("s")
-    def t = exp("t")
-    def u = exp("u")
-    def v = exp("v")
-    def w = exp("w")
-    def x = exp("x")
-    def y = exp("y")
-    def z = exp("z")
-
-    def S = exp("S")
-    def K = exp("K")
-    def I = exp("I")
-    def B = exp("B")
-    def C = exp("C")
-    def W = exp("W")
+    def S = term("S")
+    def K = term("K")
+    def I = term("I")
+    def B = term("B")
+    def C = term("C")
+    def W = term("W")
 
   }
 
-  implicit def expressionToHasConstantMethods(e: Expression): HasConstantMethods = new HasConstantMethods(e)
+  implicit def termToHasConstantMethods(t: Term): HasConstantMethods = new HasConstantMethods(t)
 
 }

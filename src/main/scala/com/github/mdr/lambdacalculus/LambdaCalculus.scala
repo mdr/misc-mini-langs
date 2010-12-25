@@ -28,8 +28,7 @@ object VariableNames {
 
 trait ReductionStrategy {
 
-  def findRedex(expression: Expression): Option[Redex]
+  def findRedex(term: Term): Option[Redex]
 
 }
-
 

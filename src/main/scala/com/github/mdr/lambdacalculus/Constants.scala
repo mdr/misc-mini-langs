@@ -1,10 +1,10 @@
 package com.github.mdr.lambdacalculus
 
-import Expression._
+import Term._
 
 object Constants {
 
-  lazy val constants = sources transform { case (_, e) => Expression(e) }
+  lazy val constants = sources transform { case (_, e) ⇒ Term(e) }
 
   private[lambdacalculus] val sources = Map(
     "PAIR" -> "λabf. f a b",
@@ -37,60 +37,94 @@ object Constants {
     "I" -> "λa.a",
     "FACT" -> "λfn. (ISZERO n) 1 (* n (f (PRED n)))")
 
-  val PAIR = "λabf. f a b".e
-  val FST = "λp.p λab. a".e
-  val SND = "λp.p λab. b".e
-  val SUCC = "λnfx.f (n f x)".e
-  val + = "λmnfx.m f (n f x)".e
-  val * = "λmn.m (+ n) 0".e
-  val ^ = "λbe.e b".e
-  val PRED = "λnfx.n (λgh.h (g f)) (λu.x) (λu.u)".e
-  val - = "λmn.n PRED m".e
-  val TRUE = "λxy.x".e
-  val FALSE = "λxy.y".e
-  val && = "λpq.p q p".e
-  val || = "λpq.p p q".e
-  val ! = "λpab.p b a".e
-  val ISZERO = "λn.n (λx.FALSE) TRUE".e
-  val AND = "λpq.p q p".e
-  val OR = "λpq.p p q".e
-  val NOT = "λpab.p b a".e
-  val IFTHENELSE = "λpab.p a b".e
-  val LEQ = "λmn.ISZERO (- m n)".e
-  val == = "λmn. AND (LEQ m n) (LEQ n m)".e
-  val Y = "λf·(λx·f (x x)) (λx·f (x x))".e
-  val Z = "λf. (λx. f (λy. x x y)) (λx. f (λy. x x y))".e
-  val U = "U".e
-  val V = "V".e
-  val S = "S".e
-  val K = "K".e
-  val I = "I".e
-  val FACT = "FACT".e
+  val PAIR = "λabf. f a b".t
+  val FST = "λp.p λab. a".t
+  val SND = "λp.p λab. b".t
+  val SUCC = "λnfx.f (n f x)".t
+  val + = "λmnfx.m f (n f x)".t
+  val * = "λmn.m (+ n) 0".t
+  val ^ = "λbe.e b".t
+  val PRED = "λnfx.n (λgh.h (g f)) (λu.x) (λu.u)".t
+  val - = "λmn.n PRED m".t
+  val TRUE = "λxy.x".t
+  val FALSE = "λxy.y".t
+  val && = "λpq.p q p".t
+  val || = "λpq.p p q".t
+  val ! = "λpab.p b a".t
+  val ISZERO = "λn.n (λx.FALSE) TRUE".t
+  val AND = "λpq.p q p".t
+  val OR = "λpq.p p q".t
+  val NOT = "λpab.p b a".t
+  val IFTHENELSE = "λpab.p a b".t
+  val LEQ = "λmn.ISZERO (- m n)".t
+  val == = "λmn. AND (LEQ m n) (LEQ n m)".t
+  val Y = "λf·(λx·f (x x)) (λx·f (x x))".t
+  val Z = "λf. (λx. f (λy. x x y)) (λx. f (λy. x x y))".t
+  val U = "U".t
+  val V = "V".t
+  val S = "S".t
+  val K = "K".t
+  val I = "I".t
+  val FACT = "FACT".t
 
-  val a = "a".e
-  val b = "b".e
-  val c = "c".e
-  val d = "d".e
-  val e = "e".e
-  val f = "f".e
-  val g = "g".e
-  val h = "h".e
-  val i = "i".e
-  val j = "j".e
-  val k = "k".e
-  val l = "l".e
-  val m = "m".e
-  val n = "n".e
-  val o = "o".e
-  val p = "p".e
-  val q = "q".e
-  val r = "r".e
-  val s = "s".e
-  val t = "t".e
-  val u = "u".e
-  val v = "v".e
-  val w = "w".e
-  val x = "x".e
-  val y = "y".e
-  val z = "z".e
+  val a = "a".t
+  val b = "b".t
+  val c = "c".t
+  val d = "d".t
+  val e = "e".t
+  val f = "f".t
+  val g = "g".t
+  val h = "h".t
+  val i = "i".t
+  val j = "j".t
+  val k = "k".t
+  val l = "l".t
+  val m = "m".t
+  val n = "n".t
+  val o = "o".t
+  val p = "p".t
+  val q = "q".t
+  val r = "r".t
+  val s = "s".t
+  val t = "t".t
+  val u = "u".t
+  val v = "v".t
+  val w = "w".t
+  val x = "x".t
+  val y = "y".t
+  val z = "z".t
+
+  class HasConstantMethods(term: Term) {
+
+    def a = term("a")
+    def b = term("b")
+    def c = term("c")
+    def d = term("d")
+    def e = term("e")
+    def f = term("f")
+    def g = term("g")
+    def h = term("h")
+    def i = term("i")
+    def j = term("j")
+    def k = term("k")
+    def l = term("l")
+    def m = term("m")
+    def n = term("n")
+    def o = term("o")
+    def p = term("p")
+    def q = term("q")
+    def r = term("r")
+    def s = term("s")
+    def t = term("t")
+    def u = term("u")
+    def v = term("v")
+    def w = term("w")
+    def x = term("x")
+    def y = term("y")
+    def z = term("z")
+
+  }
+
+  implicit def termToHasConstantMethods(t: Term): HasConstantMethods = new HasConstantMethods(t)
+
 }

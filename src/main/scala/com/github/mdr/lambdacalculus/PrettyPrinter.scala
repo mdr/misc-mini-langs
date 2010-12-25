@@ -1,57 +1,64 @@
 package com.github.mdr.lambdacalculus
 
-import Expression._
+import Term._
 
 case class PrettyPrinter(
   abbreviateChurchNumerals: Boolean = true,
   abbreviateConstants: Boolean = true,
   omitParens: Boolean = true) {
 
-  def print(expression: Expression): String =
-    if (omitParens) printWithoutParens(expression) else printWithParens(expression)
+  def print(t: Term): String = if (omitParens) printWithoutParens(t) else printWithParens(t)
 
   object Constant {
-    def unapply(expression: Expression): Option[String] =
-      (for ((s, e) <- Constants.constants if e alphaEquivalent expression) yield s).headOption
+    def unapply(term: Term): Option[String] =
+      (for ((s, t) ← Constants.constants if t α_== term) yield s).headOption
   }
 
-  private def printWithParens(expression: Expression): String = expression match {
-    case Constant(s) if abbreviateConstants => s
-    case ChurchNumeral(n) if abbreviateChurchNumerals => n.toString
-    case left * right => "(" + printWithParens(left) + " " + printWithParens(right) + ")"
-    case λ(variable, body) => "(" + "λ" + variable + "·" + printWithParens(body) + ")"
-    case Variable(name) => name
+  private def printWithParens(term: Term): String = term match {
+    case Constant(s) if abbreviateConstants ⇒ s
+    case ChurchNumeral(n) if abbreviateChurchNumerals ⇒ n.toString
+    case left * right ⇒ "(" + printWithParens(left) + " " + printWithParens(right) + ")"
+    case λ(variable, body) ⇒ "(" + "λ" + variable + "·" + printWithParens(body) + ")"
+    case Variable(name) ⇒ name
   }
 
-  private def printWithoutParens(expression: Expression): String = expression match {
-    case Constant(s) if abbreviateConstants => s
-    case ChurchNumeral(n) if abbreviateChurchNumerals => n.toString
-    case left * right =>
+  private def printWithoutParens(term: Term): String = term match {
+    case Constant(s) if abbreviateConstants ⇒ s
+    case ChurchNumeral(n) if abbreviateChurchNumerals ⇒ n.toString
+    case left * right ⇒
       val leftStr = left match {
-        case Constant(s) if abbreviateConstants => s
-        case ChurchNumeral(n) if abbreviateChurchNumerals => n.toString
-        case λ(_, _) => "(" + printWithoutParens(left) + ")"
-        case _ => printWithoutParens(left)
+        case Constant(s) if abbreviateConstants ⇒ s
+        case ChurchNumeral(n) if abbreviateChurchNumerals ⇒ n.toString
+        case λ(_, _) ⇒ "(" + printWithoutParens(left) + ")"
+        case _ ⇒ printWithoutParens(left)
       }
       val rightStr = right match {
-        case Constant(s) if abbreviateConstants => s
-        case ChurchNumeral(n) if abbreviateChurchNumerals => n.toString
-        case λ(_, _) | _* _ => "(" + printWithoutParens(right) + ")"
-        case _ => printWithoutParens(right)
+        case Constant(s) if abbreviateConstants ⇒ s
+        case ChurchNumeral(n) if abbreviateChurchNumerals ⇒ n.toString
+        case λ(_, _) | _* _ ⇒ "(" + printWithoutParens(right) + ")"
+        case _ ⇒ printWithoutParens(right)
       }
       leftStr + " " + rightStr
-    case abstraction@λ(_, _) =>
-      def getVarsAndBody(e: Expression): (List[Variable], Expression) = e match {
-        case Constant(_) if abbreviateConstants => (Nil, e)
-        case ChurchNumeral(_) if abbreviateChurchNumerals => (Nil, e)
-        case λ(argument, body) =>
+    case abstraction@λ(_, _) ⇒
+      def getVarsAndBody(t: Term): (List[Variable], Term) = t match {
+        case Constant(_) if abbreviateConstants ⇒ (Nil, t)
+        case ChurchNumeral(_) if abbreviateChurchNumerals ⇒ (Nil, t)
+        case λ(argument, body) ⇒
           val (subVars, subExpr) = getVarsAndBody(body)
           ((argument :: subVars), subExpr)
-        case _ => (Nil, e)
+        case _ ⇒ (Nil, t)
       }
       val (vars, subExpr) = getVarsAndBody(abstraction)
       "λ" + (vars map { _.name } mkString) + "·" + printWithoutParens(subExpr)
-    case Variable(name) => name
+    case Variable(name) ⇒ name
   }
+
+}
+
+object PrettyPrintingConstants {
+
+  var abbreviateChurchNumerals = true
+  var abbreviateConstants = true
+  var omitParentheses = true
 
 }

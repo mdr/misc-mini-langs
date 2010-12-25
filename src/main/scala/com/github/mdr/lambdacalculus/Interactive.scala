@@ -2,14 +2,14 @@ package com.github.mdr.lambdacalculus
 
 object Interactive {
 
-  def start(initialExpr: Expression) {
-    var currentExpr = initialExpr
+  def start(initialTerm: Term) {
+    var currentTerm = initialTerm
     while (true) {
-      println(currentExpr)
-      val redexes = currentExpr.redexes
+      println(currentTerm)
+      val redexes = currentTerm.betaRedexes
       if (redexes.isEmpty)
         return
-      for ((redex, index) <- redexes.zipWithIndex)
+      for ((redex, index) ← redexes.zipWithIndex)
         println(index + ": " + redex)
       val line = readLine()
       if (line.toLowerCase.startsWith("q"))
@@ -17,9 +17,9 @@ object Interactive {
       else {
         try {
           val index = Integer.parseInt(line.trim)
-          currentExpr = currentExpr.contract(redexes(index))
+          currentTerm = currentTerm.contract(redexes(index))
         } catch {
-          case e: NumberFormatException =>
+          case e: NumberFormatException ⇒
         }
       }
     }
