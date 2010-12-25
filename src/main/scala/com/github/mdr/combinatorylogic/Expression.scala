@@ -18,16 +18,21 @@ sealed trait Expression {
     case _ => this
   }
 
-  def S = this(combinatorylogic.S)
-  def K = this(combinatorylogic.K)
-  def I = this(combinatorylogic.I)
-
   def apply(other: Expression) = Application(this, other)
 
   import Expression._
   override def toString = PrettyPrinter(abbreviateConstants, omitParentheses).print(this)
 
   def variables: Set[Variable] = Set()
+
+  def abstraction(variable: String): Expression = abstraction(Variable(variable))
+  
+  def abstraction(variable: Variable): Expression = this match {
+    case _ if !(variables contains variable) => K(this)
+    case `variable` => I
+    case Application(left, `variable`) if !(left.variables contains variable) => left
+    case Application(left, right) => S(left abstraction variable)(right abstraction variable)
+  }
 
 }
 
@@ -64,14 +69,7 @@ object Expression extends Parser {
   def apply(lambdaTerm: lambdacalculus.Expression): Expression = lambdaTerm match {
     case lambdacalculus.Variable(name) => Variable(name)
     case lambdacalculus.Application(left, right) => Application(Expression(left), Expression(right))
-    case lambdacalculus.Abstraction(parameter, body) => abstraction(Variable(parameter.name), Expression(body))
-  }
-
-  private def abstraction(variable: Variable, expression: Expression): Expression = expression match {
-    case _ if !expression.variables.contains(variable) => K(expression)
-    case `variable` => I
-    case Application(left, `variable`) if !left.variables.contains(variable) => left
-    case Application(left, right) => S(abstraction(variable, left))(abstraction(variable, right))
+    case lambdacalculus.Abstraction(parameter, body) => Expression(body) abstraction Variable(parameter.name)
   }
 
 }

@@ -14,7 +14,7 @@ class Parser extends RegexParsers {
 
   def variable = """[a-z]'*""".r ^^ { Variable(_) }
 
-  def constant = """[^a-z\\λ\(\)\s\.·']+""".r ^^ {
+  def constant = """[^a-z\\λ\(\)\s\.·']+'*""".r ^^ {
     case name => Expression(Constants.sources(name))
   }
 
