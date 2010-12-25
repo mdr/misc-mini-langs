@@ -32,7 +32,7 @@ sealed abstract trait Expression {
   def b = betaReduction
 
   def betaReduction: Expression = this match {
-    case λ(parameter, body) * b => body.substitute(parameter, b)
+    case BetaRedex(parameter, body, argument) => body.substitute(parameter, argument)
     case a * b =>
       val left = a.betaReduction(b)
       if (left != this)
@@ -43,10 +43,7 @@ sealed abstract trait Expression {
     case _ => this
   }
 
-  def etaConversion: Expression = this match {
-    case λ(x, f ** y) if x == y => if (f.freeVariables contains x) this else f
-    case _ => this
-  }
+  def etaConversion: Expression = condOpt(this) { case EtaRedex(f, x) => f } getOrElse this
 
   def evaluate(callback: Expression => Unit): Expression = {
     callback(this)
@@ -169,6 +166,14 @@ object Expression extends Parser {
   val λ = Abstraction
   val * = Application
   val ** = Application
+
+  object BetaRedex {
+    def unapply(e: Expression) = condOpt(e) { case λ(parameter, body) * argument => (parameter, body, argument) }
+  }
+
+  object EtaRedex {
+    def unapply(e: Expression) = condOpt(e) { case λ(x, f ** y) if x == y && !(f.freeVariables contains x) => (f, x) }
+  }
 
   def apply(n: Int): Expression = ChurchNumeral(n)
 
