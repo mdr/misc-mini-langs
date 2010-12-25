@@ -2,14 +2,33 @@ package com.github.mdr.combinatorylogic
 
 import com.github.mdr.combinatorylogic
 import com.github.mdr.lambdacalculus
+import PartialFunction._
 
 sealed trait Expression {
 
+  object SRegex {
+    def unapply(e: Expression): Option[(Expression, Expression, Expression)] = condOpt(e) {
+      case Application(Application(Application(S, x), y), z) => (x, y, z)
+    }
+  }
+
+  object KRegex {
+    def unapply(e: Expression): Option[(Expression, Expression)] = condOpt(e) {
+      case Application(Application(K, x), y) => (x, y)
+    }
+  }
+
+  object IRegex {
+    def unapply(e: Expression): Option[(Expression)] = condOpt(e) {
+      case Application(I, x) => x
+    }
+  }
+
   def r = reduce
   def reduce: Expression = this match {
-    case Application(I, x) => x
-    case Application(Application(K, x), y) => x
-    case Application(Application(Application(S, x), y), z) => x(z)(y(z))
+    case IRegex(x) => x
+    case KRegex(x, y) => x
+    case SRegex(x, y, z) => x(z)(y(z))
     case Application(left, right) =>
       left.r match {
         case `left` => Application(left, right.r)
@@ -26,13 +45,22 @@ sealed trait Expression {
   def variables: Set[Variable] = Set()
 
   def abstraction(variable: String): Expression = abstraction(Variable(variable))
-  
+
   def abstraction(variable: Variable): Expression = this match {
     case _ if !(variables contains variable) => K(this)
     case `variable` => I
     case Application(left, `variable`) if !(left.variables contains variable) => left
     case Application(left, right) => S(left abstraction variable)(right abstraction variable)
   }
+
+  def redexes: List[Redex] = Nil
+
+  def isInWeakNormalForm = redexes.isEmpty
+
+  def contract(redex: Redex): Expression = contract(redex.position)
+
+  def contract(position: Position): Expression =
+    throw new IllegalArgumentException("Invalid contraction of redex: " + this)
 
 }
 
@@ -45,6 +73,25 @@ case class Variable(name: String) extends Expression {
 case class Application(left: Expression, right: Expression) extends Expression {
 
   override def variables: Set[Variable] = left.variables ++ right.variables
+
+  override def redexes =
+    (left.redexes map { _.prependChoice(false) }) ++ (right.redexes map { _.prependChoice(true) }) ++
+      (condOpt(this) {
+        case IRegex(_) | KRegex(_, _) | SRegex(_, _, _) => Redex(this, Position(Vector()))
+      })
+
+  override def contract(position: Position): Expression =
+    if (position.choices.isEmpty)
+      this match {
+        case IRegex(x) => x
+        case KRegex(x, y) => x
+        case SRegex(x, y, z) => x(z)(y(z))
+        case _ => throw new IllegalArgumentException("Invalid contraction of redex: " + this)
+      }
+    else if (position.choices.head == false)
+      copy(left = left contract position.tail)
+    else
+      copy(right = right contract position.tail)
 
 }
 

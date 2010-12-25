@@ -12,6 +12,7 @@ sealed abstract trait Expression {
 
   private[lambdacalculus] def getBoundVariables(bindingVariables: Set[Variable]): Set[Variable]
 
+  /** Find beta redexes */
   def redexes: List[Redex]
 
   def isInBetaNormalForm = redexes.isEmpty

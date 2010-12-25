@@ -75,9 +75,9 @@ object Constants {
     def S = exp("S")
     def K = exp("K")
     def I = exp("I")
-    def B = exp("I")
-    def C = exp("I")
-    def W = exp("I")
+    def B = exp("B")
+    def C = exp("C")
+    def W = exp("W")
 
   }
 
