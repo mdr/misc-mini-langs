@@ -2,6 +2,8 @@ package com.github.mdr.lambdacalculus
 
 import PartialFunction._
 
+import Expression._
+
 sealed abstract trait Expression {
 
   def substitute(variable: Variable, replacement: Expression): Expression
@@ -30,20 +32,19 @@ sealed abstract trait Expression {
   def b = betaReduction
 
   def betaReduction: Expression = this match {
-    case Application(Abstraction(arg, body), b) => body.substitute(arg, b)
-    case Application(a, b) =>
-      val left = Application(a.betaReduction, b)
+    case λ(parameter, body) * b => body.substitute(parameter, b)
+    case a * b =>
+      val left = a.betaReduction(b)
       if (left != this)
         left
       else
-        Application(a, b.betaReduction)
-    case Abstraction(arg, body) => Abstraction(arg, body.betaReduction)
+        a(b.betaReduction)
+    case λ(parameter, body) => λ(parameter, body.betaReduction)
     case _ => this
   }
 
   def etaConversion: Expression = this match {
-    case Abstraction(x, Application(f, y)) if x == y =>
-      if (f.freeVariables contains x) this else f
+    case λ(x, f ** y) if x == y => if (f.freeVariables contains x) this else f
     case _ => this
   }
 
@@ -64,8 +65,7 @@ sealed abstract trait Expression {
   def apply(other: Expression) = Application(this, other)
 
   import Expression._
-  override def toString: String =
-    PrettyPrinter(abbreviateChurchNumerals, abbreviateConstants, omitParentheses).print(this)
+  override def toString = PrettyPrinter(abbreviateChurchNumerals, abbreviateConstants, omitParentheses).print(this)
 
 }
 
@@ -100,7 +100,7 @@ case class Abstraction(parameter: Variable, body: Expression) extends Expression
     else if (replacement.freeVariables contains parameter) {
       val freeVariables = body.freeVariables ++ replacement.freeVariables
       val freshVar = Variable(VariableNames.getFirstNameNotIn(freeVariables map { _.name }))
-      Abstraction(freshVar, body.substitute(parameter, freshVar).substitute(variable, replacement))
+      λ(freshVar, body.substitute(parameter, freshVar).substitute(variable, replacement))
     } else
       copy(body = body.substitute(variable, replacement))
 
@@ -110,7 +110,7 @@ case class Abstraction(parameter: Variable, body: Expression) extends Expression
     body.getBoundVariables(bindingVariables + parameter) + parameter
 
   def alphaEquivalent(other: Expression): Boolean = cond(other) {
-    case Abstraction(otherArgument, otherBody) => body α_== otherBody.substitute(otherArgument, parameter)
+    case λ(otherArgument, otherBody) => body α_== otherBody.substitute(otherArgument, parameter)
   }
 
   def contains(other: Expression) = parameter == other || (body contains other)
@@ -130,7 +130,7 @@ case class Abstraction(parameter: Variable, body: Expression) extends Expression
 case class Application(function: Expression, argument: Expression) extends Expression {
 
   def substitute(variable: Variable, replacement: Expression): Expression =
-    Application(function.substitute(variable, replacement), argument.substitute(variable, replacement))
+    function.substitute(variable, replacement)(argument.substitute(variable, replacement))
 
   def freeVariables: Set[Variable] = function.freeVariables ++ argument.freeVariables
 
@@ -138,21 +138,19 @@ case class Application(function: Expression, argument: Expression) extends Expre
     function.getBoundVariables(bindingVariables) ++ argument.getBoundVariables(bindingVariables)
 
   def alphaEquivalent(other: Expression): Boolean = cond(other) {
-    case Application(otherFunction, otherArgument) => (function α_== otherFunction) && (argument α_== otherArgument)
+    case otherFunction * otherArgument => (function α_== otherFunction) && (argument α_== otherArgument)
   }
 
   def contains(other: Expression) = (function contains other) || (argument contains other)
 
   def redexes = (function.redexes map { _.prependChoice(false) }) ++
     (argument.redexes map { _.prependChoice(true) }) ++
-    condOpt(function) {
-      case Abstraction(argument, body) => Redex(this, Position(Vector()))
-    }
+    condOpt(function) { case λ(_, _) => Redex(this, Position(Vector())) }
 
   def contract(position: Position): Expression =
     if (position.choices.isEmpty)
       function match {
-        case Abstraction(variable, body) => body.substitute(variable, argument)
+        case λ(variable, body) => body.substitute(variable, argument)
         case _ => throw new IllegalArgumentException("Invalid contraction of redex: " + this)
       }
     else if (position.choices.head == false)
@@ -167,6 +165,10 @@ object Expression extends Parser {
   var abbreviateChurchNumerals = true
   var abbreviateConstants = true
   var omitParentheses = true
+
+  val λ = Abstraction
+  val * = Application
+  val ** = Application
 
   def apply(n: Int): Expression = ChurchNumeral(n)
 

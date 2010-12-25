@@ -6,7 +6,7 @@ class Parser extends RegexParsers {
 
   def expression: Parser[Expression] = application | simpleExpression
 
-  def simpleExpression = abstraction | variable | num | constant | "(" ~> expression <~ ")"
+  def simpleExpression = abstraction | num | variable | constant | "(" ~> expression <~ ")"
 
   def abstraction = (lambda ~> parameters <~ dot) ~ expression ^^ {
     case params ~ body => params.foldRight(body)(Abstraction)

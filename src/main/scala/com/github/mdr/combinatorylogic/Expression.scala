@@ -15,8 +15,8 @@ sealed trait Expression {
     case SRegex(x, y, z) => x(z)(y(z))
     case left * right =>
       left.r match {
-        case `left` => Application(left, right.r)
-        case other => Application(other, right)
+        case `left` => left(right.r)
+        case other => other(right)
       }
     case _ => this
   }
@@ -88,9 +88,8 @@ object Expression extends Parser {
   var abbreviateConstants = true
   var omitParentheses = true
 
-  object * {
-    def unapply(e: Expression) = condOpt(e) { case Application(left, right) => (left, right) }
-  }
+  val * = Application
+  val ** = Application
 
   object SRegex {
     def unapply(e: Expression) = condOpt(e) { case S * x * y * z => (x, y, z) }
@@ -115,7 +114,7 @@ object Expression extends Parser {
 
   def apply(lambdaTerm: lambdacalculus.Expression): Expression = lambdaTerm match {
     case lambdacalculus.Variable(name) => Variable(name)
-    case lambdacalculus.Application(left, right) => Application(Expression(left), Expression(right))
+    case lambdacalculus.Application(left, right) => Expression(left)(Expression(right))
     case lambdacalculus.Abstraction(parameter, body) => Expression(body) abstraction Variable(parameter.name)
   }
 
