@@ -1,6 +1,7 @@
 package com.github.mdr.combinatorylogic
 
 import Expression._
+import PartialFunction._
 
 object Constants {
 
@@ -11,6 +12,12 @@ object Constants {
     "B'" -> "S(K(SB))K",
     "C" -> "S(B B S)(KK)",
     "W" -> "SS(KI)")
+
+  object Patterns {
+    object B {
+      def unapply(e: Expression) = condOpt(e) { case S * (K * S) * K => true }
+    }
+  }
 
   val B = "B".e
   val C = "C".e

@@ -4,32 +4,16 @@ import com.github.mdr.combinatorylogic
 import com.github.mdr.lambdacalculus
 import PartialFunction._
 
+import Expression._
+
 sealed trait Expression {
-
-  object SRegex {
-    def unapply(e: Expression): Option[(Expression, Expression, Expression)] = condOpt(e) {
-      case Application(Application(Application(S, x), y), z) => (x, y, z)
-    }
-  }
-
-  object KRegex {
-    def unapply(e: Expression): Option[(Expression, Expression)] = condOpt(e) {
-      case Application(Application(K, x), y) => (x, y)
-    }
-  }
-
-  object IRegex {
-    def unapply(e: Expression): Option[(Expression)] = condOpt(e) {
-      case Application(I, x) => x
-    }
-  }
 
   def r = reduce
   def reduce: Expression = this match {
     case IRegex(x) => x
     case KRegex(x, y) => x
     case SRegex(x, y, z) => x(z)(y(z))
-    case Application(left, right) =>
+    case left * right =>
       left.r match {
         case `left` => Application(left, right.r)
         case other => Application(other, right)
@@ -49,8 +33,8 @@ sealed trait Expression {
   def abstraction(variable: Variable): Expression = this match {
     case _ if !(variables contains variable) => K(this)
     case `variable` => I
-    case Application(left, `variable`) if !(left.variables contains variable) => left
-    case Application(left, right) => S(left abstraction variable)(right abstraction variable)
+    case left * `variable` if !(left.variables contains variable) => left
+    case left * right => S(left abstraction variable)(right abstraction variable)
   }
 
   def redexes: List[Redex] = Nil
@@ -103,6 +87,22 @@ object Expression extends Parser {
 
   var abbreviateConstants = true
   var omitParentheses = true
+
+  object * {
+    def unapply(e: Expression) = condOpt(e) { case Application(left, right) => (left, right) }
+  }
+
+  object SRegex {
+    def unapply(e: Expression) = condOpt(e) { case S * x * y * z => (x, y, z) }
+  }
+
+  object KRegex {
+    def unapply(e: Expression) = condOpt(e) { case K * x * y => (x, y) }
+  }
+
+  object IRegex {
+    def unapply(e: Expression) = condOpt(e) { case I * x => x }
+  }
 
   def apply(input: String): Expression = parseAll(expression, input).get
 

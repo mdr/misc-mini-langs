@@ -1,6 +1,9 @@
 package com.github.mdr.combinatorylogic
 
-case class PrettyPrinter(abbreviateConstants: Boolean = true, omitParens: Boolean = true) {
+case class PrettyPrinter(
+  abbreviateChurchNumerals: Boolean = true,
+  abbreviateConstants: Boolean = true,
+  omitParens: Boolean = true) {
 
   def print(expression: Expression): String =
     if (omitParens) printWithoutParens(expression)
@@ -13,6 +16,7 @@ case class PrettyPrinter(abbreviateConstants: Boolean = true, omitParens: Boolea
 
   private def printWithParens(expression: Expression): String = expression match {
     case Constant(s) if abbreviateConstants => s
+    case ChurchNumeral(n) if abbreviateChurchNumerals => n.toString
     case Application(left, right) => "(" + printWithParens(left) + " " + printWithParens(right) + ")"
     case Variable(name) => name
     case S => "S"
@@ -22,13 +26,16 @@ case class PrettyPrinter(abbreviateConstants: Boolean = true, omitParens: Boolea
 
   private def printWithoutParens(expression: Expression): String = expression match {
     case Constant(s) if abbreviateConstants => s
+    case ChurchNumeral(n) if abbreviateChurchNumerals => n.toString
     case Application(left, right) =>
       val leftStr = left match {
         case Constant(s) if abbreviateConstants => s
+        case ChurchNumeral(n) if abbreviateChurchNumerals => n.toString
         case _ => printWithoutParens(left)
       }
       val rightStr = right match {
         case Constant(s) if abbreviateConstants => s
+        case ChurchNumeral(n) if abbreviateChurchNumerals => n.toString
         case Application(_, _) => "(" + printWithoutParens(right) + ")"
         case _ => printWithoutParens(right)
       }
