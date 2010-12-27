@@ -2,7 +2,7 @@
 
 (
 
-:project-package "com.github.mdr.lambdacalculus"
+:project-package "com.github.mdr"
 
 :use-sbt t
 
